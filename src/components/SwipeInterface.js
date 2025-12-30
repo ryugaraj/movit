@@ -49,6 +49,8 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
   const [likedSidebarOpen, setLikedSidebarOpen] = useState(false);
   const [yearRange, setYearRange] = useState({ from: 1992, to: new Date().getFullYear() });
   const [yearLimits, setYearLimits] = useState({ min: 1992, max: new Date().getFullYear() });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Save liked movies to localStorage whenever likedMovies changes
   useEffect(() => {
@@ -56,9 +58,14 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
   }, [likedMovies]);
 
   // Load movies from TMDB API based on filters
-  const loadMovies = useCallback(async (selectedGenres = [], currentYearRange = yearRange) => {
+  const loadMovies = async (selectedGenres = [], currentYearRange = yearRange, page = 1, appendToExisting = false) => {
+    if (isLoading) return;
+    
     try {
-      let url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&sort_by=popularity.desc&page=1`;
+      setIsLoading(true);
+      console.log(`Loading movies - page: ${page}, append: ${appendToExisting}`);
+      
+      let url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&sort_by=popularity.desc&page=${page}`;
       
       // Add genre filters if any are selected
       if (selectedGenres.length > 0) {
@@ -80,10 +87,14 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
         url += `&primary_release_date.lte=${currentYearRange.to}-12-31`;
       }
       
+      console.log('API URL:', url);
+      
       const response = await fetch(url);
       const data = await response.json();
       
-      if (data.results) {
+      console.log(`API Response - page: ${page}, results: ${data.results?.length || 0}`);
+      
+      if (data.results && data.results.length > 0) {
         const transformedMovies = transformTMDBData(data.results);
         
         // Filter out already liked or passed movies
@@ -92,19 +103,49 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
           !passedMovies.some(passed => passed.id === movie.id)
         );
         
-        setCurrentMovies(filteredMovies);
+        console.log(`Filtered movies: ${filteredMovies.length}`);
+        
+        setCurrentMovies(prev => {
+          if (appendToExisting) {
+            // Remove duplicates by id
+            const existingIds = prev.map(movie => movie.id);
+            const newMovies = filteredMovies.filter(movie => !existingIds.includes(movie.id));
+            console.log(`Adding ${newMovies.length} new movies to existing ${prev.length}`);
+            return [...prev, ...newMovies];
+          } else {
+            console.log(`Setting ${filteredMovies.length} movies (replacing existing)`);
+            return filteredMovies;
+          }
+        });
+        
+        setCurrentPage(page);
       }
     } catch (error) {
       console.error('Error loading movies:', error);
-      setCurrentMovies([]);
+      if (!appendToExisting) {
+        setCurrentMovies([]);
+      }
+    } finally {
+      setIsLoading(false);
     }
-  }, [likedMovies, passedMovies, yearRange]);
+  };
+
+  // Load more movies when running low
+  const loadMoreMovies = async () => {
+    console.log(`loadMoreMovies called - isLoading: ${isLoading}, currentPage: ${currentPage}`);
+    if (!isLoading) {
+      console.log(`Loading page ${currentPage + 1} with tags:`, selectedTags);
+      await loadMovies(selectedTags, yearRange, currentPage + 1, true);
+    } else {
+      console.log('Skipping load - already loading');
+    }
+  };
 
   // Initialize available genres and load initial movies
   useEffect(() => {
     setAvailableTags(Object.values(GENRE_MAP).sort());
-    loadMovies();
-  }, [loadMovies]);
+    loadMovies([], yearRange, 1, false);
+  }, []); // Only run once on mount
 
   // Transform TMDB data to our app format
   const transformTMDBData = (tmdbMovies) => {
@@ -134,13 +175,15 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
       : [...selectedTags, tag];
     
     setSelectedTags(newTags);
-    loadMovies(newTags, yearRange);
+    setCurrentPage(1); // Reset page when filters change
+    loadMovies(newTags, yearRange, 1, false);
   };
 
   const handleYearRangeChange = (field, value) => {
     const newYearRange = { ...yearRange, [field]: value };
     setYearRange(newYearRange);
-    loadMovies(selectedTags, newYearRange);
+    setCurrentPage(1); // Reset page when filters change
+    loadMovies(selectedTags, newYearRange, 1, false);
   };
 
   const clearYearRange = () => {
@@ -159,7 +202,19 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
     }
 
     // Remove the movie from current stack
-    setCurrentMovies(prev => prev.filter(m => m.id !== movie.id));
+    setCurrentMovies(prev => {
+      const newStack = prev.filter(m => m.id !== movie.id);
+      
+      console.log(`Movies left: ${newStack.length}, Current page: ${currentPage}, Loading: ${isLoading}`);
+      
+      // Load more movies when we have 10 or fewer left (more aggressive)
+      if (newStack.length <= 10 && !isLoading) {
+        console.log('Triggering loadMoreMovies...');
+        loadMoreMovies();
+      }
+      
+      return newStack;
+    });
   };
 
   const handleButtonAction = (action) => {
@@ -232,27 +287,6 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
               />
             </div>
             
-            <div className="year-range-inputs">
-              <div className="year-range-input">
-                <input
-                  type="number"
-                  value={yearRange.from}
-                  onChange={(e) => handleYearRangeChange('from', parseInt(e.target.value))}
-                  min={1992}
-                  max={yearLimits.max}
-                />
-              </div>
-              <span className="range-separator">–</span>
-              <div className="year-range-input">
-                <input
-                  type="number"
-                  value={yearRange.to}
-                  onChange={(e) => handleYearRangeChange('to', parseInt(e.target.value))}
-                  min={1992}
-                  max={yearLimits.max}
-                />
-              </div>
-            </div>
           </div>
         </div>
 
