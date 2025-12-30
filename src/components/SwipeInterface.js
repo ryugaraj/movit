@@ -56,6 +56,7 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
   const [likedSelectedTags, setLikedSelectedTags] = useState([]);
   const [likedYearRange, setLikedYearRange] = useState({ from: 1990, to: new Date().getFullYear() });
   const [filteredLikedMovies, setFilteredLikedMovies] = useState([]);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   // Save liked movies to localStorage whenever likedMovies changes
   useEffect(() => {
@@ -254,10 +255,10 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
   useEffect(() => {
     let filtered = [...likedMovies];
 
-    // Filter by genres
+    // Filter by genres (intersection - movie must have ALL selected genres)
     if (likedSelectedTags.length > 0) {
       filtered = filtered.filter(movie => 
-        movie.genres && movie.genres.some(genre => likedSelectedTags.includes(genre))
+        movie.genres && likedSelectedTags.every(selectedGenre => movie.genres.includes(selectedGenre))
       );
     }
 
@@ -376,53 +377,76 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
         </div>
 
         {likedMovies.length > 0 && (
-          <>
-            <div className="filter-section">
-              <h3 className="filter-section-title">Filter by Year</h3>
-              <div className="year-slider-container">
-                <div className="year-value-display">
-                  {likedYearRange.from === likedYearRange.to ? 
-                    likedYearRange.from : 
-                    `${likedYearRange.from} - ${likedYearRange.to}`
-                  }
+          <div className="expandable-filters">
+            <button 
+              className="filters-toggle"
+              onClick={() => setFiltersExpanded(!filtersExpanded)}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"/>
+              </svg>
+              <span>Filters</span>
+              <svg 
+                width="16" 
+                height="16" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2"
+                className={`chevron ${filtersExpanded ? 'expanded' : ''}`}
+              >
+                <polyline points="6,9 12,15 18,9"/>
+              </svg>
+            </button>
+            
+            {filtersExpanded && (
+              <>
+                <div className="filter-section">
+                  <div className="year-slider-container">
+                    <div className="year-value-display">
+                      {likedYearRange.from === likedYearRange.to ? 
+                        likedYearRange.from : 
+                        `${likedYearRange.from} - ${likedYearRange.to}`
+                      }
+                    </div>
+                    
+                    <div className="dual-range-slider">
+                      <input
+                        type="range"
+                        min={1990}
+                        max={new Date().getFullYear()}
+                        value={likedYearRange.from}
+                        onChange={(e) => handleLikedYearRangeChange('from', parseInt(e.target.value))}
+                        className="slider-from"
+                      />
+                      <input
+                        type="range"
+                        min={1990}
+                        max={new Date().getFullYear()}
+                        value={likedYearRange.to}
+                        onChange={(e) => handleLikedYearRangeChange('to', parseInt(e.target.value))}
+                        className="slider-to"
+                      />
+                    </div>
+                  </div>
                 </div>
-                
-                <div className="dual-range-slider">
-                  <input
-                    type="range"
-                    min={1990}
-                    max={new Date().getFullYear()}
-                    value={likedYearRange.from}
-                    onChange={(e) => handleLikedYearRangeChange('from', parseInt(e.target.value))}
-                    className="slider-from"
-                  />
-                  <input
-                    type="range"
-                    min={1990}
-                    max={new Date().getFullYear()}
-                    value={likedYearRange.to}
-                    onChange={(e) => handleLikedYearRangeChange('to', parseInt(e.target.value))}
-                    className="slider-to"
-                  />
-                </div>
-              </div>
-            </div>
 
-            <div className="filter-section">
-              <h3 className="filter-section-title">Filter by Genre</h3>
-              <div className="genre-filters">
-                {getLikedAvailableGenres().map(tag => (
-                  <button
-                    key={tag}
-                    className={`genre-tag ${likedSelectedTags.includes(tag) ? 'active' : ''}`}
-                    onClick={() => handleLikedTagToggle(tag)}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
+                <div className="filter-section">
+                  <div className="genre-filters">
+                    {getLikedAvailableGenres().map(tag => (
+                      <button
+                        key={tag}
+                        className={`genre-tag ${likedSelectedTags.includes(tag) ? 'active' : ''}`}
+                        onClick={() => handleLikedTagToggle(tag)}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         <div className="liked-movies-list">
