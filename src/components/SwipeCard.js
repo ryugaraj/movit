@@ -145,7 +145,14 @@ const SwipeCard = ({ movie, onSwipe, isTop, zIndex }) => {
           </div>
         </div>
         
-        <p className="card-description">{movie.description}</p>
+        <p 
+          className="card-description"
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+        >
+          {movie.description}
+        </p>
       </div>
     </div>
   );
