@@ -1,9 +1,9 @@
 .App {
   text-align: center;
-  min-height: 100vh;
+  height: 100vh;
   background: linear-gradient(135deg, #d7e8f8 0%, #c6d8f5 50%, #b0c7f1 100%);
   position: relative;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 /* Decorative background elements */
