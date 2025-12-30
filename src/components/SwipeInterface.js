@@ -51,6 +51,11 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
   const [yearLimits, setYearLimits] = useState({ min: 1992, max: new Date().getFullYear() });
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Liked movies filtering (local only)
+  const [likedSelectedTags, setLikedSelectedTags] = useState([]);
+  const [likedYearRange, setLikedYearRange] = useState({ from: 1990, to: new Date().getFullYear() });
+  const [filteredLikedMovies, setFilteredLikedMovies] = useState([]);
 
   // Save liked movies to localStorage whenever likedMovies changes
   useEffect(() => {
@@ -231,6 +236,51 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
     loadMovies(selectedTags, yearRange);
   };
 
+  // Local filtering for liked movies (no API calls)
+  const handleLikedTagToggle = (tag) => {
+    const newTags = likedSelectedTags.includes(tag)
+      ? likedSelectedTags.filter(t => t !== tag)
+      : [...likedSelectedTags, tag];
+    
+    setLikedSelectedTags(newTags);
+  };
+
+  const handleLikedYearRangeChange = (field, value) => {
+    const newYearRange = { ...likedYearRange, [field]: value };
+    setLikedYearRange(newYearRange);
+  };
+
+  // Filter liked movies locally whenever filters or likedMovies change
+  useEffect(() => {
+    let filtered = [...likedMovies];
+
+    // Filter by genres
+    if (likedSelectedTags.length > 0) {
+      filtered = filtered.filter(movie => 
+        movie.genres && movie.genres.some(genre => likedSelectedTags.includes(genre))
+      );
+    }
+
+    // Filter by year range
+    filtered = filtered.filter(movie => {
+      const movieYear = parseInt(movie.year);
+      return movieYear >= likedYearRange.from && movieYear <= likedYearRange.to;
+    });
+
+    setFilteredLikedMovies(filtered);
+  }, [likedMovies, likedSelectedTags, likedYearRange]);
+
+  // Get available genres from liked movies
+  const getLikedAvailableGenres = () => {
+    const genres = new Set();
+    likedMovies.forEach(movie => {
+      if (movie.genres) {
+        movie.genres.forEach(genre => genres.add(genre));
+      }
+    });
+    return Array.from(genres).sort();
+  };
+
   const resetStack = () => {
     setLikedMovies([]);
     setPassedMovies([]);
@@ -325,14 +375,69 @@ const SwipeInterface = ({ movies, onMovieAction }) => {
           <h2 className="sidebar-title">Liked Movies ({likedMovies.length})</h2>
         </div>
 
+        {likedMovies.length > 0 && (
+          <>
+            <div className="filter-section">
+              <h3 className="filter-section-title">Filter by Year</h3>
+              <div className="year-slider-container">
+                <div className="year-value-display">
+                  {likedYearRange.from === likedYearRange.to ? 
+                    likedYearRange.from : 
+                    `${likedYearRange.from} - ${likedYearRange.to}`
+                  }
+                </div>
+                
+                <div className="dual-range-slider">
+                  <input
+                    type="range"
+                    min={1990}
+                    max={new Date().getFullYear()}
+                    value={likedYearRange.from}
+                    onChange={(e) => handleLikedYearRangeChange('from', parseInt(e.target.value))}
+                    className="slider-from"
+                  />
+                  <input
+                    type="range"
+                    min={1990}
+                    max={new Date().getFullYear()}
+                    value={likedYearRange.to}
+                    onChange={(e) => handleLikedYearRangeChange('to', parseInt(e.target.value))}
+                    className="slider-to"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="filter-section">
+              <h3 className="filter-section-title">Filter by Genre</h3>
+              <div className="genre-filters">
+                {getLikedAvailableGenres().map(tag => (
+                  <button
+                    key={tag}
+                    className={`genre-tag ${likedSelectedTags.includes(tag) ? 'active' : ''}`}
+                    onClick={() => handleLikedTagToggle(tag)}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
         <div className="liked-movies-list">
           {likedMovies.length === 0 ? (
             <div className="empty-likes">
               <p>No liked movies yet!</p>
               <p>Start swiping to add some favorites.</p>
             </div>
+          ) : filteredLikedMovies.length === 0 ? (
+            <div className="empty-likes">
+              <p>No movies match your filters!</p>
+              <p>Try adjusting the year range or genre filters.</p>
+            </div>
           ) : (
-            likedMovies.map(movie => (
+            filteredLikedMovies.map(movie => (
               <div key={movie.id} className="liked-movie-item">
                 <img src={movie.poster} alt={movie.title} />
                 <div className="movie-details">
